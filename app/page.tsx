@@ -7,7 +7,7 @@ import NavBar from "@/components/NavBar";
 import NewEntryButton from "@/components/NewEntryButton";
 import StreakTrackerCard from "@/components/Cards/StreakTrackerCard";
 import TalkToAICard from "@/components/Cards/TalkToAICard";
-import JournalCalendarCard from "@/components/Cards/JournalCalendarCard";
+// import JournalCalendarCard from "@/components/Cards/JournalCalendarCard";
 import MoodTrackerCard from "@/components/Cards/MoodTrackerCard";
 import ActivityOverviewCard from "@/components/Cards/ActivityOverviewCard";
 import SentimentBreakdownCard from "@/components/Cards/SentimentBreakdownCard";
@@ -93,6 +93,7 @@ export default function Home() {
                     <PersonalNotionCard />
                 </div>
 
+                {/* Commented out JournalCalendarCard
                 <div className="grid gap-6 md:grid-cols-2">
                     <JournalCalendarCard
                         journaledDates={journaledDates}
@@ -100,20 +101,25 @@ export default function Home() {
                     />
                     <MoodTrackerCard moodData={mockData.moodData} />
                 </div>
+                */}
 
-                <ActivityOverviewCard activityData={mockData.activityData} />
-
-                <div className="grid gap-6 md:grid-cols-2">
+                {/* Combined SentimentBreakdownCard, MoodTrackerCard, and ActivityOverviewCard */}
+                <div className="grid gap-6 md:grid-cols-3">
                     <SentimentBreakdownCard
                         sentimentBreakdown={mockData.sentimentBreakdown}
                     />
-                    <UserEngagementStatsCard
-                        totalDays={mockData.totalDays}
-                        longestStreak={mockData.longestStreak}
-                        averageWordCount={mockData.averageWordCount}
-                        sentimentBreakdown={mockData.sentimentBreakdown}
+                    <MoodTrackerCard moodData={mockData.moodData} />
+                    <ActivityOverviewCard
+                        activityData={mockData.activityData}
                     />
                 </div>
+
+                <UserEngagementStatsCard
+                    totalDays={mockData.totalDays}
+                    longestStreak={mockData.longestStreak}
+                    averageWordCount={mockData.averageWordCount}
+                    sentimentBreakdown={mockData.sentimentBreakdown}
+                />
 
                 <JournalEntriesCard journalEntries={mockData.journalEntries} />
 
