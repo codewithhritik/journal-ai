@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Cursor from "@/components/Cursor";
 import FloatingShape from "@/components/FloatingShape";
 import NavBar from "@/components/NavBar";
@@ -14,6 +14,7 @@ import SentimentBreakdownCard from "@/components/Cards/SentimentBreakdownCard";
 import JournalEntriesCard from "@/components/Cards/JournalEntriesCard";
 import UserEngagementStatsCard from "@/components/Cards/UserEngagementStatsCard";
 import PersonalNotionCard from "@/components/Cards/PersonalNotionCard";
+import { motion } from "framer-motion";
 
 // Import mock data (you'll need to create this file)
 import mockData from "@/data/mockData";
@@ -23,6 +24,7 @@ export default function Home() {
     const [journaledDates, setJournaledDates] = useState(
         mockData.journaledDates
     );
+    const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
     const toggleDarkMode = () => {
         setIsDarkMode(!isDarkMode);
@@ -30,6 +32,7 @@ export default function Home() {
     };
 
     const handleDateSelect = (date: Date) => {
+        setSelectedDate(date);
         const formattedDate = date.toISOString().split("T")[0];
         if (journaledDates.includes(formattedDate)) {
             setJournaledDates(
@@ -39,6 +42,19 @@ export default function Home() {
             setJournaledDates([...journaledDates, formattedDate]);
         }
     };
+
+    const [randomTip, setRandomTip] = useState("");
+    const tips = [
+        "Write about a small win you had today.",
+        "Reflect on a challenge you overcame recently.",
+        "Describe your ideal day in detail.",
+        "List three things you're grateful for right now.",
+        "Write a letter to your future self.",
+    ];
+
+    useEffect(() => {
+        setRandomTip(tips[Math.floor(Math.random() * tips.length)]);
+    }, []);
 
     return (
         <div
@@ -59,38 +75,49 @@ export default function Home() {
                     <div className="w-48 h-48 rounded-full bg-accent/5" />
                 </FloatingShape>
 
-                <PersonalNotionCard />
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5 }}
+                    className="bg-primary/10 p-4 rounded-lg mb-6"
+                >
+                    <h2 className="text-lg font-semibold mb-2">
+                        Journaling Tip of the Day:
+                    </h2>
+                    <p>{randomTip}</p>
+                </motion.div>
 
-                <div className="grid gap-6 md:grid-cols-2">
+                <div className="grid gap-6 md:grid-cols-3">
                     <StreakTrackerCard streak={mockData.streak} />
                     <TalkToAICard />
+                    <PersonalNotionCard />
                 </div>
 
                 <div className="grid gap-6 md:grid-cols-2">
-                    {/* <div className="md:col-span-1">
-                        <JournalCalendarCard journaledDates={journaledDates} />
-                    </div> */}
-                    <div className="md:col-span-1 flex flex-col">
-                        <MoodTrackerCard moodData={mockData.moodData} />
-                    </div>
+                    <JournalCalendarCard
+                        journaledDates={journaledDates}
+                        onDateSelect={handleDateSelect}
+                    />
+                    <MoodTrackerCard moodData={mockData.moodData} />
                 </div>
 
                 <ActivityOverviewCard activityData={mockData.activityData} />
 
-                <SentimentBreakdownCard
-                    sentimentBreakdown={mockData.sentimentBreakdown}
-                />
+                <div className="grid gap-6 md:grid-cols-2">
+                    <SentimentBreakdownCard
+                        sentimentBreakdown={mockData.sentimentBreakdown}
+                    />
+                    <UserEngagementStatsCard
+                        totalDays={mockData.totalDays}
+                        longestStreak={mockData.longestStreak}
+                        averageWordCount={mockData.averageWordCount}
+                        sentimentBreakdown={mockData.sentimentBreakdown}
+                    />
+                </div>
 
                 <JournalEntriesCard journalEntries={mockData.journalEntries} />
 
-                <UserEngagementStatsCard
-                    totalDays={mockData.totalDays}
-                    longestStreak={mockData.longestStreak}
-                    averageWordCount={mockData.averageWordCount}
-                    sentimentBreakdown={mockData.sentimentBreakdown}
-                />
-
-                <NewEntryButton />
+                <NewEntryButton selectedDate={selectedDate} />
             </div>
         </div>
     );

@@ -4,7 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Sparkles } from "lucide-react";
 import { motion } from "framer-motion";
 
-export default function NewEntryButton() {
+interface NewEntryButtonProps {
+    selectedDate: Date | null;
+}
+
+export default function NewEntryButton({ selectedDate }: NewEntryButtonProps) {
     return (
         <motion.div
             className="fixed bottom-8 right-8 z-50"
@@ -13,7 +17,9 @@ export default function NewEntryButton() {
         >
             <Button size="lg" className="rounded-full shadow-lg">
                 <Sparkles className="mr-2 h-4 w-4" />
-                New Entry
+                {selectedDate
+                    ? `New Entry for ${selectedDate.toLocaleDateString()}`
+                    : "New Entry"}
             </Button>
         </motion.div>
     );
