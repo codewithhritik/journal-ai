@@ -1,35 +1,45 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, useAnimation } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Mic, MicOff, PhoneOff, Video, VideoOff } from "lucide-react";
+import { Socket, io } from "socket.io-client";
+import { Mic, MicOff, PhoneOff, Video, VideoOff, ArrowLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
 
-// Dummy API functions (replace with actual API calls later)
-const fetchQuestion = async () => {
-    await new Promise((resolve) => setTimeout(resolve, 1000)); // Simulate API delay
-    return {
-        text: "Tell me about your experience with React.",
-        audioUrl: "/path/to/audio/file.mp3", // Replace with actual audio URL
-    };
-};
+interface QuestionResponse {
+    status: boolean;
+    id: number;
+    text: string;
+    audioUrl: string;
+}
 
-const sendAnswer = async (audioBlob: Blob) => {
-    await new Promise((resolve) => setTimeout(resolve, 1000)); // Simulate API delay
-    console.log("Answer sent to backend");
-};
+interface MediaState {
+    isMuted: boolean;
+    isVideoOff: boolean;
+    isUserSpeaking: boolean;
+    isAISpeaking: boolean;
+}
 
 export default function InterviewInterface() {
     const router = useRouter();
-    const [isMuted, setIsMuted] = useState(true);
-    const [isVideoOff, setIsVideoOff] = useState(true);
+    const [socket, setSocket] = useState<Socket | null>(null);
+    const [mediaState, setMediaState] = useState<MediaState>({
+        isMuted: true,
+        isVideoOff: true,
+        isUserSpeaking: false,
+        isAISpeaking: false
+    });
     const [isSessionEnded, setIsSessionEnded] = useState(false);
-    const [isUserSpeaking, setIsUserSpeaking] = useState(false);
-    const [currentQuestion, setCurrentQuestion] = useState("");
-    const [isAISpeaking, setIsAISpeaking] = useState(false);
+    const [currentQuestion, setCurrentQuestion] = useState<QuestionResponse>({
+        status: false,
+        id: 0,
+        text: "",
+        audioUrl: "",
+    });
+
+    // Refs
     const circleAnimation = useAnimation();
     const audioContext = useRef<AudioContext | null>(null);
     const analyser = useRef<AnalyserNode | null>(null);
@@ -39,14 +49,47 @@ export default function InterviewInterface() {
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const audioChunks = useRef<Blob[]>([]);
 
+    // Socket setup
     useEffect(() => {
-        audioContext.current = new (window.AudioContext ||
-            (window as any).webkitAudioContext)();
-        analyser.current = audioContext.current.createAnalyser();
-        analyser.current.fftSize = 256;
-        dataArray.current = new Uint8Array(analyser.current.frequencyBinCount);
+        const socketInstance = io('http://localhost:5000');
+        
+        const handleConnect = () => console.log('Connected to socket server');
+        socketInstance.on('connect', handleConnect);
+        
+        socketInstance.emit('request_question');
 
-        setupMediaDevices();
+        const handleQuestion = (question: QuestionResponse) => {
+            if(question.status) {
+                setCurrentQuestion(question);
+            }
+        };
+        socketInstance.on("question", handleQuestion);
+        
+        setSocket(socketInstance);
+        
+        return () => {
+            socketInstance.off('connect', handleConnect);
+            socketInstance.off('question', handleQuestion);
+            socketInstance.disconnect();
+        };
+    }, []);
+
+    // Media setup
+    useEffect(() => {
+        const initializeMedia = async () => {
+            try {
+                audioContext.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+                analyser.current = audioContext.current.createAnalyser();
+                analyser.current.fftSize = 256;
+                dataArray.current = new Uint8Array(analyser.current.frequencyBinCount);
+
+                await setupMediaDevices();
+            } catch (err) {
+                console.error("Error initializing media:", err);
+            }
+        };
+
+        initializeMedia();
 
         return () => {
             if (animationFrameId.current) {
@@ -64,88 +107,77 @@ export default function InterviewInterface() {
                 audio: true,
                 video: true,
             });
+
             if (videoRef.current) {
                 videoRef.current.srcObject = stream;
             }
+
             const audioTrack = stream.getAudioTracks()[0];
             const videoTrack = stream.getVideoTracks()[0];
-            audioTrack.enabled = !isMuted;
-            videoTrack.enabled = !isVideoOff;
+            audioTrack.enabled = !mediaState.isMuted;
+            videoTrack.enabled = !mediaState.isVideoOff;
 
-            const source =
-                audioContext.current!.createMediaStreamSource(stream);
+            const source = audioContext.current!.createMediaStreamSource(stream);
             source.connect(analyser.current!);
 
-            mediaRecorderRef.current = new MediaRecorder(stream);
-            mediaRecorderRef.current.ondataavailable = (event) => {
-                audioChunks.current.push(event.data);
-            };
-            mediaRecorderRef.current.onstop = async () => {
-                const audioBlob = new Blob(audioChunks.current, {
-                    type: "audio/mp3",
-                });
-                await sendAnswer(audioBlob);
-                audioChunks.current = [];
-                await getNextQuestion();
-            };
+            setupMediaRecorder(stream);
         } catch (err) {
             console.error("Error accessing media devices:", err);
         }
     };
 
-    useEffect(() => {
-        const checkAudio = () => {
-            if (analyser.current && dataArray.current) {
-                analyser.current.getByteFrequencyData(dataArray.current);
-                const sum = dataArray.current.reduce((a, b) => a + b, 0);
-                const average = sum / dataArray.current.length;
-                const isSpeaking = average > 20; // Adjust this threshold as needed
-
-                setIsUserSpeaking(isSpeaking);
-                circleAnimation.start(
-                    isSpeaking ? { scale: 1.2 } : { scale: 1 }
-                );
-            }
-            animationFrameId.current = requestAnimationFrame(checkAudio);
+    const setupMediaRecorder = (stream: MediaStream) => {
+        mediaRecorderRef.current = new MediaRecorder(stream);
+        mediaRecorderRef.current.ondataavailable = (event) => {
+            audioChunks.current.push(event.data);
         };
-
-        checkAudio();
-
-        return () => {
-            if (animationFrameId.current) {
-                cancelAnimationFrame(animationFrameId.current);
-            }
+        mediaRecorderRef.current.onstop = async () => {
+            const audioBlob = new Blob(audioChunks.current, { type: "audio/mp3" });
+            await sendAnswer(audioBlob);
+            audioChunks.current = [];
+            playNextQuestion();
         };
-    }, [circleAnimation]);
+    };
 
-    useEffect(() => {
-        getNextQuestion();
+    const sendAnswer = async (audioBlob: Blob) => {
+        console.log("Sending answer...");
+        if (socket) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                socket.emit("give_answer", reader.result as string);
+            };
+            reader.readAsDataURL(audioBlob);
+        }
+    };
+
+    const toggleMute = useCallback(() => {
+        setMediaState(prev => {
+            const newIsMuted = !prev.isMuted;
+            const audioTrack = videoRef.current?.srcObject?.getAudioTracks()[0];
+            if (audioTrack) {
+                audioTrack.enabled = !newIsMuted;
+            }
+            return { ...prev, isMuted: newIsMuted };
+        });
     }, []);
 
-    const toggleMute = () => {
-        setIsMuted(!isMuted);
-        const audioTrack = videoRef.current?.srcObject?.getAudioTracks()[0];
-        if (audioTrack) {
-            audioTrack.enabled = isMuted;
+    const toggleVideo = useCallback(() => {
+        setMediaState(prev => {
+            const newIsVideoOff = !prev.isVideoOff;
+            const videoTrack = videoRef.current?.srcObject?.getVideoTracks()[0];
+            if (videoTrack) {
+                videoTrack.enabled = !newIsVideoOff;
+            }
+            return { ...prev, isVideoOff: newIsVideoOff };
+        });
+    }, []);
+
+    const playNextQuestion = async () => {
+        setMediaState(prev => ({ ...prev, isAISpeaking: true }));
+        if (currentQuestion.audioUrl) {
+            await playAudioQuestion(currentQuestion.audioUrl);
         }
-    };
-
-    const toggleVideo = () => {
-        setIsVideoOff(!isVideoOff);
-        const videoTrack = videoRef.current?.srcObject?.getVideoTracks()[0];
-        if (videoTrack) {
-            videoTrack.enabled = isVideoOff;
-        }
-    };
-
-    const endSession = () => setIsSessionEnded(true);
-
-    const getNextQuestion = async () => {
-        setIsAISpeaking(true);
-        const question = await fetchQuestion();
-        setCurrentQuestion(question.text);
-        await playAudioQuestion(question.audioUrl);
-        setIsAISpeaking(false);
+        setMediaState(prev => ({ ...prev, isAISpeaking: false }));
         startRecording();
     };
 
@@ -155,38 +187,23 @@ export default function InterviewInterface() {
     };
 
     const startRecording = () => {
-        if (
-            mediaRecorderRef.current &&
-            mediaRecorderRef.current.state === "inactive"
-        ) {
+        if (mediaRecorderRef.current?.state === "inactive") {
             mediaRecorderRef.current.start();
         }
     };
 
     const stopRecording = () => {
-        if (
-            mediaRecorderRef.current &&
-            mediaRecorderRef.current.state === "recording"
-        ) {
+        if (mediaRecorderRef.current?.state === "recording") {
             mediaRecorderRef.current.stop();
         }
-    };
-
-    const goBackHome = () => {
-        router.push("/");
     };
 
     if (isSessionEnded) {
         return (
             <div className="flex items-center justify-center h-screen bg-background">
                 <Card className="p-6">
-                    <h2 className="text-2xl font-bold mb-4">
-                        Interview Session Ended
-                    </h2>
-                    <p>
-                        Thank you for participating. You will receive feedback
-                        shortly.
-                    </p>
+                    <h2 className="text-2xl font-bold mb-4">Interview Session Ended</h2>
+                    <p>Thank you for participating. You will receive feedback shortly.</p>
                 </Card>
             </div>
         );
@@ -205,49 +222,39 @@ export default function InterviewInterface() {
                         ref={videoRef}
                         className="w-full h-full object-cover"
                         autoPlay
-                        muted={isMuted}
+                        muted={mediaState.isMuted}
                         playsInline
                     />
                 </div>
                 <div className="absolute top-4 left-4 right-4 text-center">
                     <Card className="p-4">
-                        <p className="text-lg font-semibold">
-                            {currentQuestion}
-                        </p>
+                        <p className="text-lg font-semibold">{currentQuestion.text}</p>
                     </Card>
                 </div>
             </main>
             <footer className="p-6 flex justify-center space-x-6">
                 <Button
-                    variant={isMuted ? "destructive" : "secondary"}
+                    variant={mediaState.isMuted ? "destructive" : "secondary"}
                     size="lg"
                     className="w-16 h-16 rounded-full"
                     onClick={toggleMute}
-                    disabled={isAISpeaking}
+                    disabled={mediaState.isAISpeaking}
                 >
-                    {isMuted ? (
-                        <MicOff className="h-8 w-8" />
-                    ) : (
-                        <Mic className="h-8 w-8" />
-                    )}
+                    {mediaState.isMuted ? <MicOff className="h-8 w-8" /> : <Mic className="h-8 w-8" />}
                 </Button>
                 <Button
-                    variant={isVideoOff ? "destructive" : "secondary"}
+                    variant={mediaState.isVideoOff ? "destructive" : "secondary"}
                     size="lg"
                     className="w-16 h-16 rounded-full"
                     onClick={toggleVideo}
                 >
-                    {isVideoOff ? (
-                        <VideoOff className="h-8 w-8" />
-                    ) : (
-                        <Video className="h-8 w-8" />
-                    )}
+                    {mediaState.isVideoOff ? <VideoOff className="h-8 w-8" /> : <Video className="h-8 w-8" />}
                 </Button>
                 <Button
                     variant="destructive"
                     size="lg"
                     className="w-16 h-16 rounded-full"
-                    onClick={endSession}
+                    onClick={() => setIsSessionEnded(true)}
                 >
                     <PhoneOff className="h-8 w-8" />
                 </Button>
@@ -255,7 +262,7 @@ export default function InterviewInterface() {
                     variant="secondary"
                     size="lg"
                     className="w-16 h-16 rounded-full"
-                    onClick={goBackHome}
+                    onClick={() => router.push("/")}
                 >
                     <ArrowLeft className="h-8 w-8" />
                 </Button>
