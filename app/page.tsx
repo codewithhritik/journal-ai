@@ -7,7 +7,6 @@ import NavBar from "@/components/NavBar";
 import NewEntryButton from "@/components/NewEntryButton";
 import StreakTrackerCard from "@/components/Cards/StreakTrackerCard";
 import TalkToAICard from "@/components/Cards/TalkToAICard";
-// import JournalCalendarCard from "@/components/Cards/JournalCalendarCard";
 import MoodTrackerCard from "@/components/Cards/MoodTrackerCard";
 import ActivityOverviewCard from "@/components/Cards/ActivityOverviewCard";
 import SentimentBreakdownCard from "@/components/Cards/SentimentBreakdownCard";
@@ -15,6 +14,8 @@ import JournalEntriesCard from "@/components/Cards/JournalEntriesCard";
 import UserEngagementStatsCard from "@/components/Cards/UserEngagementStatsCard";
 import PersonalNotionCard from "@/components/Cards/PersonalNotionCard";
 import { motion } from "framer-motion";
+import InterviewInterface from "@/components/interview-interface";
+import { useRouter } from "next/navigation";
 
 // Import mock data (you'll need to create this file)
 import mockData from "@/data/mockData";
@@ -25,6 +26,7 @@ export default function Home() {
         mockData.journaledDates
     );
     const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+    const router = useRouter();
 
     const toggleDarkMode = () => {
         setIsDarkMode(!isDarkMode);
@@ -55,6 +57,10 @@ export default function Home() {
     useEffect(() => {
         setRandomTip(tips[Math.floor(Math.random() * tips.length)]);
     }, []);
+
+    const startInterview = () => {
+        router.push("/interview");
+    };
 
     return (
         <div
@@ -89,21 +95,10 @@ export default function Home() {
 
                 <div className="grid gap-6 md:grid-cols-3">
                     <StreakTrackerCard streak={mockData.streak} />
-                    <TalkToAICard />
+                    <TalkToAICard onStartInterview={startInterview} />
                     <PersonalNotionCard />
                 </div>
 
-                {/* Commented out JournalCalendarCard
-                <div className="grid gap-6 md:grid-cols-2">
-                    <JournalCalendarCard
-                        journaledDates={journaledDates}
-                        onDateSelect={handleDateSelect}
-                    />
-                    <MoodTrackerCard moodData={mockData.moodData} />
-                </div>
-                */}
-
-                {/* Combined SentimentBreakdownCard, MoodTrackerCard, and ActivityOverviewCard */}
                 <div className="grid gap-6 md:grid-cols-3">
                     <SentimentBreakdownCard
                         sentimentBreakdown={mockData.sentimentBreakdown}
@@ -114,16 +109,17 @@ export default function Home() {
                     />
                 </div>
 
-                <UserEngagementStatsCard
-                    totalDays={mockData.totalDays}
-                    longestStreak={mockData.longestStreak}
-                    averageWordCount={mockData.averageWordCount}
-                    sentimentBreakdown={mockData.sentimentBreakdown}
-                />
-
-                <JournalEntriesCard journalEntries={mockData.journalEntries} />
-
-                <NewEntryButton selectedDate={selectedDate} />
+                <div className="grid gap-6 md:grid-cols-2">
+                    <UserEngagementStatsCard
+                        totalDays={mockData.totalDays}
+                        longestStreak={mockData.longestStreak}
+                        averageWordCount={mockData.averageWordCount}
+                        sentimentBreakdown={mockData.sentimentBreakdown}
+                    />
+                    <JournalEntriesCard
+                        journalEntries={mockData.journalEntries}
+                    />
+                </div>
             </div>
         </div>
     );
